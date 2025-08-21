@@ -1,16 +1,38 @@
+using System;
+using System.Threading;
 using Godot;
 
 public partial class InputText : TextEdit
 {
+    private Thread thread;
     private RichTextLabel outputText;
     private string prompt;
-    Bash bash;
+    private TerminalController tc;
 
-    public void Reset()
+    private void Reset()
     {
-        prompt = bash.CUR_DIR + " - >> ";
         Text = "";
         InsertTextAtCaret(prompt);
+    }
+
+    // public override void _Backspace(int caretIndex)
+    // {
+    //     int line = GetCaretLine();
+    //     int column = GetCaretColumn();
+
+    //     if (column > prompt.Length)
+    //         RemoveText(line, column - 1, line, column);
+    // }
+
+    private void OutputReceivedEventHandler(string output)
+    {
+        outputText.AppendText(output);
+        GD.Print("Retorno da conexão Telnet: " + output);
+    }
+
+    private void ProcessCommand(string command)
+    {
+        tc.SendCommand(command);
     }
 
     public override void _GuiInput(InputEvent @event)
@@ -21,39 +43,24 @@ public partial class InputText : TextEdit
             {
                 AcceptEvent();
 
-                string command = GetLine(GetCaretLine()).Replace(prompt, "").Trim();
+                string command = GetLine(GetCaretLine())/*.Replace(prompt, "")*/.Trim();
                 if (command != "")
-                    outputText.AppendText(prompt + command + "\n" + bash.ExecuteCommand(command) + "\n");
+                    ProcessCommand(command);
                 if (command == "clear")
                     outputText.Text = "";
 
                 Reset();
-
             }
-            if (eventKey.Pressed && eventKey.Keycode == Key.Backspace)
-            {
-                _Backspace(0);
-            }
+            // if (eventKey.Pressed && eventKey.Keycode == Key.Backspace)
+            // {
+            //     _Backspace(0);
+            // }
         }
 
     }
 
-    public override void _Backspace(int caretIndex)
-    {
-        int line = GetCaretLine();
-        int column = GetCaretColumn();
-
-        if (column > prompt.Length)
-            RemoveText(line, column - 1, line, column);
-    }
-
     public override void _Ready()
     {
-        bash = new Bash("/home");
-        outputText = (RichTextLabel)GetNode("../OutputText");
-
-        Reset();
+        tc = new TerminalController();
     }
-
-
 }

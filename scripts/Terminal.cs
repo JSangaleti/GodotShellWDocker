@@ -6,13 +6,11 @@ public partial class Terminal : Control
 	{
 		// if (Input.IsActionJustPressed("Esc"))
 		// {
-		// GetTree().ChangeSceneToFile("res://scenes/computador.tscn");
+		// 	// GetTree().ChangeSceneToFile("res://scenes/computador.tscn");
 		// }
 	}
 
 	public override void _Ready()
 	{
-		Docker docker = new Docker();
-		docker.StartMachine("maquina");
 	}
 }
