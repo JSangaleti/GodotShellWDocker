@@ -7,7 +7,7 @@ using System;
 public partial class TerminalController : Node
 {
     [Signal]
-    public delegate string OutputReceivedEventHandler(string output);
+    public delegate void OutputReceivedWithArgumentEventHandler(string output);
 
     private TelnetConnection telnet;
     private Thread telnetThread;
@@ -23,23 +23,25 @@ public partial class TerminalController : Node
 
     private void TelnetLoop()
     {
-        GD.Print("Conexão Telnet estabelecida");
+        string output = "";
+        GD.Print("Conexão iniciada");
         while (running)
         {
             while (commandQueue.TryDequeue(out string command))
             {
                 telnet.WriteLine(command);
-                string output = telnet.Read();
-                CallDeferred(nameof(EmitOutput), output);
+            }
+
+            output = telnet.Read();
+            if (output != "")
+            {
+                GD.Print(output);
+                CallDeferred("emit_signal", SignalName.OutputReceivedWithArgument, output);
+                output = "";
             }
 
             Thread.Sleep(50);
         }
-    }
-
-    private void EmitOutput(string output)
-    {
-        EmitSignal(nameof(OutputReceived), output);
     }
 
     public void SendCommand(string command)
