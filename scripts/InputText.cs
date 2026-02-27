@@ -6,7 +6,9 @@ public partial class InputText : TextEdit
 {
 	private RichTextLabel outputText;
 	private string prompt;
+	private Control terminal;
 	private TerminalController tc;
+	private int exit_levels = 0;
 
 	private void Reset()
 	{
@@ -14,19 +16,10 @@ public partial class InputText : TextEdit
 		InsertTextAtCaret(prompt);
 	}
 
-	// public override void _Backspace(int caretIndex)
-	// {
-	//     int line = GetCaretLine();
-	//     int column = GetCaretColumn();
-
-	//     if (column > prompt.Length)
-	//         RemoveText(line, column - 1, line, column);
-	// }
-
 	private void AppendOutput(string output)
 	{
+		GD.Print("Saída do comando adicionada");
 		outputText.AppendText(output);
-		GD.Print("Retorno da conexão Telnet: " + output);
 	}
 
 	private void ProcessCommand(string command)
@@ -43,17 +36,37 @@ public partial class InputText : TextEdit
 				AcceptEvent();
 
 				string command = GetLine(GetCaretLine())/*.Replace(prompt, "")*/.Trim();
-				if (command != "")
-					ProcessCommand(command);
-				if (command == "clear")
-					outputText.Text = "";
+
+				switch (command.Split(" ")[0])
+				{
+					case "":
+						break;
+					case "su" or "telnet" or "ssh":
+						exit_levels++;
+						ProcessCommand(command);
+						break;
+					case "exit":
+						if (exit_levels == 0)
+						{
+							terminal._ExitTree();
+						}
+						else
+						{
+							exit_levels--;
+							ProcessCommand(command);
+						}
+						break;
+					case "clear":
+						outputText.Text = "";
+						break;
+					default:
+						ProcessCommand(command);
+						break;
+
+				}
 
 				Reset();
 			}
-			// if (eventKey.Pressed && eventKey.Keycode == Key.Backspace)
-			// {
-			//     _Backspace(0);
-			// }
 		}
 
 	}
@@ -63,8 +76,10 @@ public partial class InputText : TextEdit
 	public override void _Ready()
 	{
 		outputText = GetNode<RichTextLabel>($"../OutputText");
+		terminal = GetNode<Control>($"..");
 
 		tc = new TerminalController();
+		AddChild(tc);
 		tc.Connect(
 		TerminalController.SignalName.OutputReceivedWithArgument, // nome do sinal
 		new Callable(this, nameof(AppendOutput))                 // método callback

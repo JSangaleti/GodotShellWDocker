@@ -2,15 +2,18 @@ using Godot;
 
 public partial class Terminal : Control
 {
-	public override void _Process(double delta)
+	DockerManager docker;
+	public override async void _Ready()
 	{
-		// if (Input.IsActionJustPressed("Esc"))
-		// {
-		// 	// GetTree().ChangeSceneToFile("res://scenes/computador.tscn");
-		// }
+		base._Ready();
+		docker = new DockerManager("player_machine");
+		await docker.StartAsync();
 	}
 
-	public override void _Ready()
+	public override async void _ExitTree()
 	{
+		await docker.StopAsync();
+		base._ExitTree();
+		Dispose();
 	}
 }

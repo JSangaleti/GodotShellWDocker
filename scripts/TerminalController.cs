@@ -1,58 +1,113 @@
 using Godot;
-using System.Threading;
-using MinimalisticTelnet;
-using System.Collections.Concurrent;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using MinimalisticTelnet;
 
 public partial class TerminalController : Node
 {
-    [Signal]
-    public delegate void OutputReceivedWithArgumentEventHandler(string output);
+	[Signal]
+	public delegate void OutputReceivedWithArgumentEventHandler(string output);
 
-    private TelnetConnection telnet;
-    private Thread telnetThread;
-    private ConcurrentQueue<string> commandQueue = new ConcurrentQueue<string>();
-    private bool running = true;
+	private TelnetConnection telnet;
+	private CancellationTokenSource cts;
+	private Task telnetTask;
+	private ConcurrentQueue<string> commandQueue = new();
 
-    public TerminalController()
-    {
-        telnet = new TelnetConnection("127.0.0.1", 5001);
-        telnetThread = new Thread(TelnetLoop);
-        telnetThread.Start();
-    }
+	public override async void _Ready()
+	{
+		await ConnectWithRetry();
+	}
 
-    private void TelnetLoop()
-    {
-        string output = "";
-        GD.Print("Conexão iniciada");
-        while (running)
-        {
-            while (commandQueue.TryDequeue(out string command))
-            {
-                telnet.WriteLine(command);
-            }
+	private async Task ConnectWithRetry()
+	{
+		GD.Print("Tentando conectar...");
 
-            output = telnet.Read();
-            if (output != "")
-            {
-                GD.Print(output);
-                CallDeferred("emit_signal", SignalName.OutputReceivedWithArgument, output);
-                output = "";
-            }
+		int maxAttempts = 10;
+		int attempt = 0;
 
-            Thread.Sleep(50);
-        }
-    }
+		while (attempt < maxAttempts)
+		{
+			try
+			{
+				attempt++;
+				GD.Print($"Tentativa {attempt}");
 
-    public void SendCommand(string command)
-    {
-        commandQueue.Enqueue(command);
-    }
+				telnet = new TelnetConnection("127.0.0.1", 5000);
 
-    public override void _ExitTree()
-    {
-        running = false;
-        telnetThread.Join();
-    }
+				telnet.Login("player", "player", 2000);
 
+				GD.Print("Login deu certo :)");
+
+				cts = new CancellationTokenSource();
+				telnetTask = RunTelnetAsync(cts.Token);
+
+				return;
+			}
+			catch (Exception e)
+			{
+				GD.PrintErr($"Falhou tentativa {attempt}: {e.Message}");
+				await Task.Delay(1000);
+			}
+		}
+
+		GD.PrintErr("Não conseguiu conectar após várias tentativas.");
+	}
+
+	private async Task RunTelnetAsync(CancellationToken token)
+	{
+		while (!token.IsCancellationRequested)
+		{
+			try
+			{
+				while (commandQueue.TryDequeue(out string cmd))
+				{
+					GD.Print("Comando enviado");
+					telnet.WriteLine(cmd);
+				}
+
+				string output = telnet.Read();
+
+				if (!string.IsNullOrEmpty(output))
+				{
+					CallDeferred(MethodName.EmitSignal,
+						SignalName.OutputReceivedWithArgument,
+						output);
+				}
+
+				await Task.Delay(10, token);
+			}
+			catch (OperationCanceledException)
+			{
+				break;
+			}
+			catch (Exception e)
+			{
+				GD.PrintErr($"Erro telnet: {e.Message}");
+			}
+		}
+	}
+
+	public void SendCommand(string command)
+	{
+		GD.Print("Comando enfileirado");
+		commandQueue.Enqueue(command);
+	}
+
+	public override async void _ExitTree()
+	{
+		if (cts != null)
+		{
+			cts.Cancel();
+
+			try
+			{
+				await telnetTask;
+			}
+			catch { }
+
+			cts.Dispose();
+		}
+	}
 }
