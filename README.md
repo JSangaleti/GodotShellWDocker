@@ -15,9 +15,14 @@ Para rodar esta aplicação, é necessário ter instalado:
 ## 3) Construindo a aplicação 
 
 ### 3.1) Construindo o container
-Para construir o container Docker a partir do arquivo Dockerfile, entre no diretório em que está o arquivo e execute o seguinte comando:
+Para construir a imagem Docker a partir do arquivo Dockerfile, entre no diretório em que está o arquivo e execute o seguinte comando:
 ```
 docker build -t player_machine .
+```
+
+Em seguida para criar o container:
+```
+docker create --name player_machine -p 5000:23 player_machine:latest 
 ```
 
 > **Importante!** Certifique-se de que o servidor Docker em seu computador esteja rodando devidamente! A própria aplicação está responsável por iniciar e parar o container

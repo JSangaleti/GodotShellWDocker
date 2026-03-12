@@ -5,7 +5,6 @@
 
 
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Net.Sockets;
 
@@ -25,7 +24,7 @@ namespace MinimalisticTelnet
 		SGA = 3
 	}
 
-	class TelnetConnection
+	public class TelnetConnection
 	{
 		TcpClient tcpSocket;
 

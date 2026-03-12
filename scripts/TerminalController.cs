@@ -14,15 +14,21 @@ public partial class TerminalController : Node
 	private CancellationTokenSource cts;
 	private Task telnetTask;
 	private ConcurrentQueue<string> commandQueue = new();
+	private bool isConnected = false;
 
-	public override async void _Ready()
+	public override void _Ready()
 	{
-		await ConnectWithRetry();
+		_ = ConnectWithRetry();
 	}
 
 	private async Task ConnectWithRetry()
 	{
-		GD.Print("Tentando conectar...");
+		Log.Info("Tentando conectar...");
+		// Envia o texto "Ligando..." à saída do terminal, bloqueando,
+		// também, a entrada de texto até que haja conexão com a máquina Docker
+		CallDeferred(MethodName.EmitSignal,
+						SignalName.OutputReceivedWithArgument,
+						"Ligando...");
 
 		int maxAttempts = 10;
 		int attempt = 0;
@@ -32,13 +38,17 @@ public partial class TerminalController : Node
 			try
 			{
 				attempt++;
-				GD.Print($"Tentativa {attempt}");
+				Log.Info($"Tentativa {attempt}");
 
 				telnet = new TelnetConnection("127.0.0.1", 5000);
 
-				telnet.Login("player", "player", 2000);
+				telnet.Login("player", "player", 1000);
 
-				GD.Print("Login deu certo :)");
+				Log.Info("Login deu certo :)");
+				CallDeferred(MethodName.EmitSignal,
+						SignalName.OutputReceivedWithArgument,
+						" Tudo pronto!\n");
+				isConnected = true;
 
 				cts = new CancellationTokenSource();
 				telnetTask = RunTelnetAsync(cts.Token);
@@ -47,12 +57,12 @@ public partial class TerminalController : Node
 			}
 			catch (Exception e)
 			{
-				GD.PrintErr($"Falhou tentativa {attempt}: {e.Message}");
+				Log.Error($"Falhou tentativa {attempt}: {e.Message}");
 				await Task.Delay(1000);
 			}
 		}
 
-		GD.PrintErr("Não conseguiu conectar após várias tentativas.");
+		Log.Error("Não conseguiu conectar após várias tentativas.");
 	}
 
 	private async Task RunTelnetAsync(CancellationToken token)
@@ -63,7 +73,7 @@ public partial class TerminalController : Node
 			{
 				while (commandQueue.TryDequeue(out string cmd))
 				{
-					GD.Print("Comando enviado");
+					Log.Info("Comando enviado");
 					telnet.WriteLine(cmd);
 				}
 
@@ -84,15 +94,19 @@ public partial class TerminalController : Node
 			}
 			catch (Exception e)
 			{
-				GD.PrintErr($"Erro telnet: {e.Message}");
+				Log.Error($"Erro telnet: {e.Message}");
+				break;
 			}
 		}
 	}
 
 	public void SendCommand(string command)
 	{
-		GD.Print("Comando enfileirado");
-		commandQueue.Enqueue(command);
+		if (isConnected)
+		{
+			Log.Info("Comando enfileirado");
+			commandQueue.Enqueue(command);
+		}
 	}
 
 	public override async void _ExitTree()

@@ -12,8 +12,9 @@ public partial class Terminal : Control
 
 	public override async void _ExitTree()
 	{
-		await docker.StopAsync();
+		if (docker != null)
+			await docker.StopAsync();
+
 		base._ExitTree();
-		Dispose();
 	}
 }
